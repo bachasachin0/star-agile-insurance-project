@@ -2,16 +2,50 @@
   hosts: all
   become: true
   tasks:
+
     - name: Install Java (OpenJDK 11)
       apt:
         name: openjdk-11-jdk
         state: present
-        
+        update_cache: yes
+
+    - name: Install unzip package
+      apt:
+        name: unzip
+        state: present
+
+    - name: Download Google Chrome
+      get_url:
+        url: https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+        dest: /tmp/google-chrome-stable_current_amd64.deb
+
+    - name: Install Google Chrome
+      apt:
+        deb: /tmp/google-chrome-stable_current_amd64.deb
+
+    - name: Download Chromedriver
+      get_url:
+        url: https://chromedriver.storage.googleapis.com/114.0.5735.90/chromedriver_linux64.zip
+        dest: /tmp/chromedriver_linux64.zip
+
+    - name: Unzip Chromedriver
+      unarchive:
+        src: /tmp/chromedriver_linux64.zip
+        dest: /usr/bin/
+        remote_src: yes
+
+    - name: Make Chromedriver executable
+      file:
+        path: /usr/bin/chromedriver
+        mode: '0755'
+        owner: root
+        group: root
+
     - name: Clone GitHub Repo
       git:
         repo: 'https://github.com/bachasachin0/star-agile-insurance-project'
         dest: /home/devops/test-app
-        version: master 
+        version: master
 
     - name: Run Selenium test JAR
       shell: java -jar /home/devops/test-app/selenium-insure-me-runnable.jar
