@@ -1,71 +1,28 @@
-- name: Setup environment and run Selenium test JAR
-  hosts: all
-  become: true
+---
+- name: Run Selenium tests on test machine
+  hosts: test_machine    # make sure your inventory defines this host/group
+  become: yes            # if needed to run as sudo
   tasks:
-
-    - name: Install Java (OpenJDK 11)
-      apt:
+    - name: Ensure Java and Maven wrapper are available (optional)
+      package:
         name: openjdk-11-jdk
         state: present
-        update_cache: yes
+      become: yes
 
-    - name: Remove existing Google Chrome if present
-      apt:
-        name: google-chrome-stable
-        state: absent
-      ignore_errors: yes
-
-    - name: Download Chrome 124 .deb package
-      get_url:
-        url: https://dl.google.com/linux/chrome/deb/pool/main/g/google-chrome-stable/google-chrome-stable_124.0.6367.119-1_amd64.deb
-        dest: /tmp/google-chrome.deb
-
-    - name: Install Chrome 124
-      apt:
-        deb: /tmp/google-chrome.deb
-
-    - name: Remove existing ChromeDriver
-      file:
-        path: /usr/local/bin/chromedriver
-        state: absent
-      ignore_errors: yes
-
-    - name: Download ChromeDriver 124
-      get_url:
-        url: https://chromedriver.storage.googleapis.com/124.0.6367.91/chromedriver_linux64.zip
-        dest: /tmp/chromedriver.zip
-
-    - name: Unzip ChromeDriver
-      unarchive:
-        src: /tmp/chromedriver.zip
-        dest: /usr/local/bin/
-        remote_src: yes
-        mode: '0755'
-      notify: Move ChromeDriver
-
-    - name: Clone Selenium Test Repository
-      git:
-        repo: 'https://github.com/bachasachin0/star-agile-insurance-project'
-        dest: /home/devops/test-app
-        version: master
-        force: yes
-
-    - name: Run Selenium test JAR
-      shell: java -jar selenium-insure-me-runnable.jar
+    - name: Run Selenium tests with Maven wrapper
+      shell: ./mvnw test
       args:
         chdir: /home/devops/test-app
-      register: selenium_run
+      environment:
+        JAVA_HOME: /usr/lib/jvm/java-11-openjdk-amd64  # Adjust path if needed
+      register: test_result
       ignore_errors: yes
 
-    - name: Show Selenium test output
+    - name: Print test output
       debug:
-        var: selenium_run.stdout_lines
+        var: test_result.stdout_lines
 
-    - name: Fail if Selenium test JAR failed
+    - name: Fail if tests failed
       fail:
-        msg: "Selenium test JAR execution failed!"
-      when: selenium_run.rc != 0
-
-  handlers:
-    - name: Move ChromeDriver
-      command: mv /usr/local/bin/chromedriver /usr/local/bin/chromedriver
+        msg: "Selenium tests failed!"
+      when: test_result.rc != 0
