@@ -20,7 +20,7 @@
   - name: Deploy Docker Container
     docker_container:
       name: insure-me-app
-      image: sachinbacha/Insure-me:latest
+      image: sachinbacha/insure-me:latest
       state: started
       restart_policy: always
       ports:
