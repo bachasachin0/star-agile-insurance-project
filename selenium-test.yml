@@ -20,16 +20,43 @@
       register: chrome_major_version
       changed_when: false
 
+    - name: Debug Chrome version detected
+      debug:
+        msg: "Detected Chrome major version: {{ chrome_major_version.stdout }}"
+
     - name: Download matching ChromeDriver version and install
       shell: |
+        set -e
         CHROME_VERSION={{ chrome_major_version.stdout }}
+        # Get latest matching chromedriver version for the detected Chrome version
         DRIVER_VERSION=$(curl -s "https://chromedriver.storage.googleapis.com/LATEST_RELEASE_${CHROME_VERSION}")
+
+        if [ -z "$DRIVER_VERSION" ]; then
+          echo "No ChromeDriver version found for Chrome version $CHROME_VERSION"
+          exit 1
+        fi
+
+        echo "Downloading ChromeDriver version $DRIVER_VERSION for Chrome $CHROME_VERSION"
+
         wget -q -O /tmp/chromedriver.zip "https://chromedriver.storage.googleapis.com/${DRIVER_VERSION}/chromedriver_linux64.zip"
+
+        if [ ! -f /tmp/chromedriver.zip ]; then
+          echo "ChromeDriver zip download failed!"
+          exit 1
+        fi
+
         unzip -o /tmp/chromedriver.zip -d /tmp/chromedriver
         mv /tmp/chromedriver/chromedriver /usr/local/bin/chromedriver
         chmod +x /usr/local/bin/chromedriver
+        rm -rf /tmp/chromedriver /tmp/chromedriver.zip
       args:
-        creates: /usr/local/bin/chromedriver
+        executable: /bin/bash
+      register: chromedriver_install
+      changed_when: "'Downloading ChromeDriver' in chromedriver_install.stdout"
+
+    - name: Debug ChromeDriver install output
+      debug:
+        var: chromedriver_install.stdout_lines
 
     - name: Clone GitHub Repo
       git:
@@ -39,12 +66,17 @@
         force: yes
 
     - name: Run Selenium test JAR
-      shell: java -jar /home/devops/test-app/selenium-insure-me-runnable.jar
+      shell: java -jar selenium-insure-me-runnable.jar
       args:
         chdir: /home/devops/test-app
-
-    - name: Clean up ChromeDriver zip file
-      file:
-        path: /tmp/chromedriver.zip
-        state: absent
+      register: selenium_run
       ignore_errors: yes
+
+    - name: Show Selenium test output
+      debug:
+        var: selenium_run.stdout_lines
+
+    - name: Fail if Selenium test JAR failed
+      fail:
+        msg: "Selenium test JAR execution failed!"
+      when: selenium_run.rc != 0
