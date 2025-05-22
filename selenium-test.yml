@@ -9,7 +9,7 @@
 
     - name: Clone GitHub Repo
       git:
-        repo: 'https://github.com/your-username/your-repo.git'
+        repo: 'https://github.com/bachasachin0/star-agile-insurance-project'
         dest: /home/devops/test-app
         version: master 
 
