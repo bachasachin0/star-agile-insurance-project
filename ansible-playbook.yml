@@ -1,22 +1,62 @@
-- name : Configure Docker on EC2 Instances
-  hosts : all
+---
+- name: Configure Docker on EC2 Instances
+  hosts: all
   become: true
-  connection : ssh
-  tasks : 
-    - name: updating apt
-      command : sudo apt-get update
+  connection: ssh
+  tasks:
 
-    - name : Install Docker
-      command : sudo apt-get install -y docker.io
-      become : yes
-      become_user : root
+    - name: Remove conflicting containerd packages
+      apt:
+        name:
+          - containerd
+          - containerd.io
+        state: absent
+        purge: yes
+        autoremove: yes
 
-    - name : Start Docker Service
-      command : sudo systemctl start docker
-      become : yes
-      become_user : root
+    - name: Update apt cache
+      apt:
+        update_cache: yes
 
-    - name: Check if a container with the name already exists
+    - name: Install Docker dependencies
+      apt:
+        name:
+          - apt-transport-https
+          - ca-certificates
+          - curl
+          - software-properties-common
+        state: present
+
+    - name: Add Docker's official GPG key
+      apt_key:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        state: present
+
+    - name: Add Docker apt repository
+      apt_repository:
+        repo: deb [arch=amd64] https://download.docker.com/linux/ubuntu focal stable
+        state: present
+      # Change 'focal' if your Ubuntu version is different (e.g., 'jammy' for 22.04)
+
+    - name: Update apt cache after adding Docker repo
+      apt:
+        update_cache: yes
+
+    - name: Install Docker CE and containerd.io
+      apt:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+        state: present
+
+    - name: Ensure Docker service is started and enabled
+      service:
+        name: docker
+        state: started
+        enabled: yes
+
+    - name: Check if a container named 'insure-me-app' exists
       shell: docker ps -a --filter "name=^/insure-me-app$" --format "{{'{{'}}.ID{{'}}'}}"
       register: container_id_result
       changed_when: false
@@ -36,3 +76,4 @@
         published_ports:
           - "8084:8080"
       when: container_id_result is not defined or container_id_result.stdout == ""
+
