@@ -1,20 +1,40 @@
-- name : Configure Docker on EC2 Instances
-  hosts : all
+- name: Configure Docker on EC2 Instances
+  hosts: all
   become: true
-  connection : ssh
-  tasks : 
-  - name: updating apt
-    command : sudo apt-get update
+  connection: ssh
+  tasks:
+    - name: Update apt cache
+      apt:
+        update_cache: yes
 
-  - name : Install Docker
-    command : sudo apt-get install -y docker.io
-    become : yes
-    become_user : root
+    - name: Install Docker
+      apt:
+        name: docker.io
+        state: present
 
-  - name : Start Docker Service
-    command : sudo systemctl start docker
-    become : yes
-    become_user : root
+    - name: Ensure Docker service is started and enabled
+      service:
+        name: docker
+        state: started
+        enabled: yes
 
-  - name: Deploy Docker Container
-    command: docker run -itd -p 8084:8080 sachinbacha/insure-me:latest
+    - name: Check if a container with the name already exists
+      shell: docker ps -a --filter "name=^/insure-me-app$" --format "{{.ID}}"
+      register: container_id
+      changed_when: false
+      ignore_errors: true
+
+    - name: Restart existing container if it exists
+      shell: docker restart insure-me-app
+      when: container_id.stdout != ""
+      ignore_errors: true
+
+    - name: Run new container if not running already
+      docker_container:
+        name: insure-me-app
+        image: sachinbacha/insure-me:latest
+        state: started
+        restart_policy: always
+        published_ports:
+          - "8084:8080"
+      when: container_id.stdout == ""
