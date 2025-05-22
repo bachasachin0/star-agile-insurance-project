@@ -36,7 +36,7 @@
       apt_repository:
         repo: deb [arch=amd64] https://download.docker.com/linux/ubuntu focal stable
         state: present
-      # Change 'focal' if your Ubuntu version is different (e.g., 'jammy' for 22.04)
+      
 
     - name: Update apt cache after adding Docker repo
       apt:
