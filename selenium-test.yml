@@ -3,43 +3,54 @@
   become: true
   tasks:
 
+    - name: Remove old versions of Google Chrome if present
+      apt:
+        name: google-chrome-stable
+        state: absent
+        purge: yes
+      ignore_errors: true
+
     - name: Install Java (OpenJDK 11)
       apt:
         name: openjdk-11-jdk
         state: present
         update_cache: yes
 
-    - name: Install unzip package
+    - name: Install unzip and jq
       apt:
-        name: unzip
+        name:
+          - unzip
+          - jq
         state: present
 
-    - name: Download Google Chrome
-      get_url:
-        url: https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
-        dest: /tmp/google-chrome-stable_current_amd64.deb
+    - name: Download and install latest Google Chrome
+      shell: |
+        wget -q -O /tmp/google-chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+        apt install -y /tmp/google-chrome.deb
+      args:
+        creates: /usr/bin/google-chrome
 
-    - name: Install Google Chrome
-      apt:
-        deb: /tmp/google-chrome-stable_current_amd64.deb
+    - name: Get installed Chrome version
+      shell: google-chrome --version | grep -oP '\d+\.\d+\.\d+'
+      register: chrome_version
 
-    - name: Download Chromedriver
-      get_url:
-        url: https://chromedriver.storage.googleapis.com/114.0.5735.90/chromedriver_linux64.zip
-        dest: /tmp/chromedriver_linux64.zip
+    - name: Fetch latest ChromeDriver version
+      shell: |
+        curl -sS https://googlechromelabs.github.io/chrome-for-testing/last-known-good-versions-with-downloads.json \
+        | jq -r '.channels.Stable.version'
+      register: chromedriver_version
 
-    - name: Unzip Chromedriver
-      unarchive:
-        src: /tmp/chromedriver_linux64.zip
-        dest: /usr/bin/
-        remote_src: yes
+    - name: Download and install ChromeDriver
+      shell: |
+        wget -q -O /tmp/chromedriver.zip "https://edgedl.me.gvt1.com/edgedl/chrome/chrome-for-testing/{{ chromedriver_version.stdout }}/linux64/chromedriver-linux64.zip"
+        unzip -o /tmp/chromedriver.zip -d /tmp/chromedriver
+        mv /tmp/chromedriver/chromedriver-linux64/chromedriver /usr/local/bin/chromedriver
+        chmod +x /usr/local/bin/chromedriver
+      args:
+        creates: /usr/local/bin/chromedriver
 
-    - name: Make Chromedriver executable
-      file:
-        path: /usr/bin/chromedriver
-        mode: '0755'
-        owner: root
-        group: root
+    - name: Verify ChromeDriver
+      shell: chromedriver --version
 
     - name: Clone GitHub Repo
       git:
@@ -49,3 +60,20 @@
 
     - name: Run Selenium test JAR
       shell: java -jar /home/devops/test-app/selenium-insure-me-runnable.jar
+      args:
+        chdir: /home/devops/test-app
+
+    # ---------- Cleanup Tasks ----------
+    - name: Remove downloaded Chrome .deb and ChromeDriver zip
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /tmp/google-chrome.deb
+        - /tmp/chromedriver.zip
+
+    - name: Remove extracted ChromeDriver temp dir
+      file:
+        path: /tmp/chromedriver
+        state: absent
+        recurse: yes
