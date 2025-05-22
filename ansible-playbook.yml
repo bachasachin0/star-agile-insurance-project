@@ -1,20 +1,71 @@
-- name : Configure Docker on EC2 Instances
-  hosts : all
+- name: Setup environment and run Selenium test JAR
+  hosts: all
   become: true
-  connection : ssh
-  tasks : 
-  - name: updating apt
-    command : sudo apt-get update
+  tasks:
 
-  - name : Install Docker
-    command : sudo apt-get install -y docker.io
-    become : yes
-    become_user : root
+    - name: Install Java (OpenJDK 11)
+      apt:
+        name: openjdk-11-jdk
+        state: present
+        update_cache: yes
 
-  - name : Start Docker Service
-    command : sudo systemctl start docker
-    become : yes
-    become_user : root
+    - name: Remove existing Google Chrome if present
+      apt:
+        name: google-chrome-stable
+        state: absent
+      ignore_errors: yes
 
-  - name: Deploy Docker Container
-    command: docker run -itd -p 8084:8081 shubhamkushwah123/insure-me:3.0
+    - name: Download Chrome 124 .deb package
+      get_url:
+        url: https://dl.google.com/linux/chrome/deb/pool/main/g/google-chrome-stable/google-chrome-stable_124.0.6367.119-1_amd64.deb
+        dest: /tmp/google-chrome.deb
+
+    - name: Install Chrome 124
+      apt:
+        deb: /tmp/google-chrome.deb
+
+    - name: Remove existing ChromeDriver
+      file:
+        path: /usr/local/bin/chromedriver
+        state: absent
+      ignore_errors: yes
+
+    - name: Download ChromeDriver 124
+      get_url:
+        url: https://chromedriver.storage.googleapis.com/124.0.6367.91/chromedriver_linux64.zip
+        dest: /tmp/chromedriver.zip
+
+    - name: Unzip ChromeDriver
+      unarchive:
+        src: /tmp/chromedriver.zip
+        dest: /usr/local/bin/
+        remote_src: yes
+        mode: '0755'
+      notify: Move ChromeDriver
+
+    - name: Clone Selenium Test Repository
+      git:
+        repo: 'https://github.com/bachasachin0/star-agile-insurance-project'
+        dest: /home/devops/test-app
+        version: master
+        force: yes
+
+    - name: Run Selenium test JAR
+      shell: java -jar selenium-insure-me-runnable.jar
+      args:
+        chdir: /home/devops/test-app
+      register: selenium_run
+      ignore_errors: yes
+
+    - name: Show Selenium test output
+      debug:
+        var: selenium_run.stdout_lines
+
+    - name: Fail if Selenium test JAR failed
+      fail:
+        msg: "Selenium test JAR execution failed!"
+      when: selenium_run.rc != 0
+
+  handlers:
+    - name: Move ChromeDriver
+      command: mv /usr/local/bin/chromedriver /usr/local/bin/chromedriver
