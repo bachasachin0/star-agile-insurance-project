@@ -9,56 +9,41 @@
         state: present
         update_cache: yes
 
-    - name: Remove old ChromeDriver if exists
+    - name: Remove existing Google Chrome if present
+      apt:
+        name: google-chrome-stable
+        state: absent
+      ignore_errors: yes
+
+    - name: Download Chrome 124 .deb package
+      get_url:
+        url: https://dl.google.com/linux/chrome/deb/pool/main/g/google-chrome-stable/google-chrome-stable_124.0.6367.119-1_amd64.deb
+        dest: /tmp/google-chrome.deb
+
+    - name: Install Chrome 124
+      apt:
+        deb: /tmp/google-chrome.deb
+
+    - name: Remove existing ChromeDriver
       file:
         path: /usr/local/bin/chromedriver
         state: absent
       ignore_errors: yes
 
-    - name: Get installed Chrome major version
-      shell: google-chrome --version | grep -oP '\d+' | head -1
-      register: chrome_major_version
-      changed_when: false
+    - name: Download ChromeDriver 124
+      get_url:
+        url: https://chromedriver.storage.googleapis.com/124.0.6367.91/chromedriver_linux64.zip
+        dest: /tmp/chromedriver.zip
 
-    - name: Debug Chrome version detected
-      debug:
-        msg: "Detected Chrome major version: {{ chrome_major_version.stdout }}"
+    - name: Unzip ChromeDriver
+      unarchive:
+        src: /tmp/chromedriver.zip
+        dest: /usr/local/bin/
+        remote_src: yes
+        mode: '0755'
+      notify: Move ChromeDriver
 
-    - name: Download matching ChromeDriver version and install
-      shell: |
-        set -e
-        CHROME_VERSION={{ chrome_major_version.stdout }}
-        # Get latest matching chromedriver version for the detected Chrome version
-        DRIVER_VERSION=$(curl -s "https://chromedriver.storage.googleapis.com/LATEST_RELEASE_${CHROME_VERSION}")
-
-        if [ -z "$DRIVER_VERSION" ]; then
-          echo "No ChromeDriver version found for Chrome version $CHROME_VERSION"
-          exit 1
-        fi
-
-        echo "Downloading ChromeDriver version $DRIVER_VERSION for Chrome $CHROME_VERSION"
-
-        wget -q -O /tmp/chromedriver.zip "https://chromedriver.storage.googleapis.com/${DRIVER_VERSION}/chromedriver_linux64.zip"
-
-        if [ ! -f /tmp/chromedriver.zip ]; then
-          echo "ChromeDriver zip download failed!"
-          exit 1
-        fi
-
-        unzip -o /tmp/chromedriver.zip -d /tmp/chromedriver
-        mv /tmp/chromedriver/chromedriver /usr/local/bin/chromedriver
-        chmod +x /usr/local/bin/chromedriver
-        rm -rf /tmp/chromedriver /tmp/chromedriver.zip
-      args:
-        executable: /bin/bash
-      register: chromedriver_install
-      changed_when: "'Downloading ChromeDriver' in chromedriver_install.stdout"
-
-    - name: Debug ChromeDriver install output
-      debug:
-        var: chromedriver_install.stdout_lines
-
-    - name: Clone GitHub Repo
+    - name: Clone Selenium Test Repository
       git:
         repo: 'https://github.com/bachasachin0/star-agile-insurance-project'
         dest: /home/devops/test-app
@@ -80,3 +65,7 @@
       fail:
         msg: "Selenium test JAR execution failed!"
       when: selenium_run.rc != 0
+
+  handlers:
+    - name: Move ChromeDriver
+      command: mv /usr/local/bin/chromedriver /usr/local/bin/chromedriver
