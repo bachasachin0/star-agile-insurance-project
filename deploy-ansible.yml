@@ -32,6 +32,6 @@
         state: started
         restart_policy: always
         published_ports:
-          - "8084:8080"
+          - "8084:8081"
       when: container_id_result is not defined or container_id_result.stdout == ""
       become: yes
