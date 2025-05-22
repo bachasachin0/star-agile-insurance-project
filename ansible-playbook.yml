@@ -19,17 +19,17 @@
         enabled: yes
 
     - name: Check if a container with the name already exists
-      shell: docker ps -a --filter "name=^/insure-me-app$" --format "{{.ID}}"
-      register: container_id
+      shell: docker ps -a --filter "name=^/insure-me-app$" --format "{{'{{'}}.ID{{'}}'}}"
+      register: container_id_result
       changed_when: false
       ignore_errors: true
 
     - name: Restart existing container if it exists
       shell: docker restart insure-me-app
-      when: container_id.stdout != ""
+      when: container_id_result is defined and container_id_result.stdout != ""
       ignore_errors: true
 
-    - name: Run new container if not running already
+    - name: Run new container if not already running
       docker_container:
         name: insure-me-app
         image: sachinbacha/insure-me:latest
@@ -37,4 +37,4 @@
         restart_policy: always
         published_ports:
           - "8084:8080"
-      when: container_id.stdout == ""
+      when: container_id_result is not defined or container_id_result.stdout == ""
