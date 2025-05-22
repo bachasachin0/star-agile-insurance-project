@@ -11,16 +11,17 @@
     become : yes
     become_user : root
 
-  - name : Start Docker Service
-    command : sudo systemctl start docker
-    become : yes
-    become_user : root
+  - name: Ensure Docker service is started and enabled
+      service:
+          name: docker
+          state: started
+          enabled: yes
 
-- name: Deploy Docker Container
-  docker_container:
-    name: insure-me-app
-    image: sachinbacha/Insure-me:latest
-    state: started
-    restart_policy: always
-    ports:
-      - "8084:8081"
+  - name: Deploy Docker Container
+    docker_container:
+      name: insure-me-app
+      image: sachinbacha/Insure-me:latest
+      state: started
+      restart_policy: always
+      ports:
+        - "8084:8080"
